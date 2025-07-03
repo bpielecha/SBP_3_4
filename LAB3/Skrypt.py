@@ -17,11 +17,11 @@ params_nominal = {
 }
 param_names = list(params_nominal.keys())
 
-# ustala przedział czasowy symulacji (0-48h) i punkty pomiarowe
+# przedzial czasowy symulacji, punkty pomiarowe 
 t_span = [0, 48]
 t_eval = np.linspace(t_span[0], t_span[1], 500)
 
-# ddwa scenariusze
+# 2 scenariusze
 scenarios = {
     "scenariusz_1_zdrowe": {
         "siRNA": 0.02,
@@ -49,7 +49,7 @@ def model(t, y, params, inputs):
     dMDM2 = p2 * p53 / (p3 + p53) - d2 * MDM2 + k2 * PTEN_off - k3 * siRNA
     return [dp53, dMDM2]
 
-# oblicza lokalną wrażliwość p53 względem parametrów 
+# oblicza lokalna wrazliwosc p53 wzgledem parametrow 
 def local_sensitivity_with_sens_eqs(params, inputs):
     n_params = len(params)
     y0 = [0, 0]  
@@ -70,7 +70,7 @@ def local_sensitivity_with_sens_eqs(params, inputs):
         PTEN_off = inputs['PTEN_off']
         no_DNA_damage = inputs['no_DNA_damage']
 
-        #  równania modelu
+        # równania modelu
         dp53 = p1 - d1 * MDM2 * p53 + k1 * no_DNA_damage
         dMDM2 = p2 * p53 / (p3 + p53) - d2 * MDM2 + k2 * PTEN_off - k3 * siRNA
         dydt = [dp53, dMDM2]
@@ -81,7 +81,7 @@ def local_sensitivity_with_sens_eqs(params, inputs):
             [p2 * p3 / (p3 + p53)**2, -d2]
         ])
 
-        # pochodne cząstkowe względem parametrów
+        # pochodne czastkowe wzgledem parametrow
         dfdp = np.zeros((2, n_params))
         dfdp[0, param_names.index('p1')] = 1
         dfdp[0, param_names.index('d1')] = -MDM2 * p53
@@ -92,28 +92,28 @@ def local_sensitivity_with_sens_eqs(params, inputs):
         dfdp[1, param_names.index('k2')] = PTEN_off
         dfdp[1, param_names.index('k3')] = -siRNA
 
-        # oblicza pochodne wrażliwości wg wzoru: dS/dt = dfdx * S + dfdp
+        # oblicza pochodne wrazliwosci : dS/dt = dfdx * S + dfdp
         dSdt = np.zeros((2, n_params))
         for i in range(n_params):
             dSdt[:, i] = dfdx @ S[:, i] + dfdp[:, i]
 
         return dydt + dSdt.flatten().tolist()
 
-    # rozwiązuje rozszerzony układ równań
+    # rozwiązuje układ równań
     sol = solve_ivp(augmented_system, t_span, yS0, t_eval=t_eval)
-    # wyodrębnia funkcje wrażliwości p53 względem każdego parametru
+    # wyodrebnianie funkcji wrazliwosci p53 pod wzgledem kazdego parametru
     sens_results = {pname: sol.y[2 + i, :] for i, pname in enumerate(param_names)}
     return sens_results, sol.y[0]
 
-# przybliżona globalna analiza
+# przyblizona globalna analiza
 def global_sobol_like(params, inputs, scale=0.2, N=100):
-    # tworzy próbki parametrów w zakresie +-20%
+    # +-20% (zakres) tworzenia probek parametrow
     samples = np.random.rand(N, len(params))
     for i, key in enumerate(param_names):
         nominal = params[key]
         samples[:, i] = samples[:, i] * (2 * scale * nominal) + (1 - scale) * nominal
 
-    # oblicza końcową wartość p53 dla każdej próbki
+    # koncowe p53 dla kazdej probki
     Y = []
     for row in samples:
         p = dict(zip(param_names, row))
@@ -121,7 +121,7 @@ def global_sobol_like(params, inputs, scale=0.2, N=100):
         Y.append(sol.y[0, -1])
     Y = np.array(Y)
 
-    # liczy wariancję całkowitą i wariancję warunkową dla każdego parametru
+    # wariancja calkowita i warunkowa dla kazdego parametru
     total_var = np.var(Y)
     S1 = []
     for i in range(len(param_names)):
@@ -148,7 +148,7 @@ for scen_name, inputs in scenarios.items():
     mean_rank = sorted({k: np.mean(np.abs(v)) for k, v in local_sens.items()}.items(), key=lambda x: x[1], reverse=True)
     top_param = mean_rank[0][0]
     last_param = mean_rank[-1][0]
-    # nizej wszystkie wykresy
+    # wykresy
     for pname in [top_param, last_param]:
         plt.figure()
         plt.plot(t_eval, local_sens[pname])
