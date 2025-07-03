@@ -1,196 +1,146 @@
+#!/usr/bin/env python3
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib.animation import PillowWriter
 
-def create_grid(rows, cols): #tworzy siatke dwuwymiarowa 50x50
-    grid = []
-    for i in range(rows):
-        row = []
-        for j in range(cols):
-            row.append(0)
-        grid.append(row)
-    return grid
+#budowanie siatki
+def create_grid(rows, cols):
+    return [[0]*cols for _ in range(rows)]
 
-
-def neighbour_count(grid, x, y): #definiuje sasiedztwo moorea (8 sasiadow) oraz warunki brzgowe (zawiajnie, czyli komorka z lewej skrajnej strony jest sasiadem komorki z prawej skrajnej strony itd. )
-    alive = 0 #poczatkowy licznik zywych komorek
-    rows = len(grid) #liczba wierszy liczona na podstawie podanej siatki
-    cols = len(grid[0]) #liczba kolumn jw
-
-    for dx in [-1, 0, 1]: #sprawdzamy przesuniecia; dx przesuniecie wiersza (-1 w gore, 1 w dol), dy kolumny (-1 w lewo, 1 w prawo)
-        for dy in [-1, 0, 1]:
-            if dx == 0 and dy == 0: #pomijamy sama komorke, bo nie chcemy jej liczyc do sasiadow
-                continue  
-            
-            #warunki brzegowe, modulo sprawia ze jesli wyjdzie poza granice siatki to wroci od drugiej strony siatki
-            nx = (x + dx) % rows #(x + dx) to wspolrzedne sasiada wiersz
-            ny = (y + dy) % cols #(y + dy) sasiad kolumna
-            
-            alive += grid[nx][ny] #dodajemy sasiada (1 - zywy, 0 - martwy) do calkowitej liczby
+#zliczanie zywych sasiadow
+def neighbour_count(grid, x, y):
+    alive = 0
+    rows, cols = len(grid), len(grid[0])
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            if dx == 0 and dy == 0:
+                continue
+            nx = (x + dx) % rows
+            ny = (y + dy) % cols
+            alive += grid[nx][ny]
     return alive
 
+#nowa siatka po zastosowaniu warunkow
 def transition_rules(grid):
-    rows = len(grid)
-    cols = len(grid[0])
-    new_grid = [row[:] for row in grid] #tworze kopie starej siatki
-
-    for x in range(rows): #petla po kazdej komorce spisujaca jej obecny stan
+    rows, cols = len(grid), len(grid[0])
+    new = [row[:] for row in grid]
+    for x in range(rows):
         for y in range(cols):
-            alive_neighbors = neighbour_count(grid, x, y) #ilu zywych sasiadow ma komorka (x,y)
-            cell = grid[x][y] #oznacza stan komorki 1/0
-    
-            #zasady zywotnosci komorek
-            if cell == 1:  #komorka zywa
-                if alive_neighbors < 2 or alive_neighbors > 3:
-                    new_grid[x][y] = 0  #komorka umiera
-                else:
-                            new_grid[x][y] = 1  #komorka przezywa
-            else:  #komorka martwa
-                if alive_neighbors == 3:
-                    new_grid[x][y] = 1  #komorka ozywa
+            alive = neighbour_count(grid, x, y)
+            if grid[x][y] == 1:
+                new[x][y] = 1 if 2 <= alive <= 3 else 0
+            else:
+                new[x][y] = 1 if alive == 3 else 0
+    return new
 
-    return new_grid  #nowa siatka/stan 
-
-def count_alive_cells(grid): #liczy liczbe zywych komorek
+#ile zycywch komorek w siatce
+def count_alive_cells(grid):
     return sum(sum(row) for row in grid)
 
-def insert_pattern(grid, pattern, x, y): #wzorce ciaglego zycia lub oscylatory - wybieramy "forme" komorek ktora chcemy nalozyc na siatke 
+#nakladanie siatki 
+def insert_pattern(grid, pattern, x, y):
     if pattern == "block":
-        grid[x][y] = 1
-        grid[x][y+1] = 1
-        grid[x+1][y] = 1
-        grid[x+1][y+1] = 1
-
+        coords = [(0,0),(0,1),(1,0),(1,1)]
     elif pattern == "beehive":
-        grid[x][y+1] = 1
-        grid[x][y+2] = 1
-        grid[x+1][y] = 1
-        grid[x+1][y+3] = 1
-        grid[x+2][y+1] = 1
-        grid[x+2][y+2] = 1
-
+        coords = [(0,1),(0,2),(1,0),(1,3),(2,1),(2,2)]
     elif pattern == "boat":
-        grid[x][y] = 1
-        grid[x][y+1] = 1
-        grid[x+1][y] = 1
-        grid[x+1][y+2] = 1
-        grid[x+2][y+1] = 1
-
-#oscylatory
+        coords = [(0,0),(0,1),(1,0),(1,2),(2,1)]
     elif pattern == "blinker":
-        grid[x][y] = 1
-        grid[x][y+1] = 1
-        grid[x][y+2] = 1
-
+        coords = [(0,0),(0,1),(0,2)]
     elif pattern == "toad":
-        grid[x][y+1] = 1
-        grid[x][y+2] = 1
-        grid[x][y+3] = 1
-        grid[x+1][y] = 1
-        grid[x+1][y+1] = 1
-        grid[x+1][y+2] = 1
-
+        coords = [(0,1),(0,2),(0,3),(1,0),(1,1),(1,2)]
     else:
         raise ValueError(f"Nieznany wzorzec: {pattern}")
+    for dx, dy in coords:
+        grid[x+dx][y+dy] = 1
 
+def still_life(grid):
+    insert_pattern(grid, "block",   5,  5)
+    insert_pattern(grid, "beehive",20, 20)
+    insert_pattern(grid, "boat",   35, 35)
 
-def still_life(grid): #wykonanie pkt 2 - symulacja wzorcow ciaglego zycia
-    insert_pattern(grid, "block", 5, 5)
-    insert_pattern(grid, "beehive", 20, 20)
-    insert_pattern(grid, "boat", 35, 35)
+def oscylator(grid):
+    insert_pattern(grid, "blinker",5,  5)
+    insert_pattern(grid, "toad",   20, 20)
 
-def oscylator(grid): #wykonanie pkt 3 - symulacja oscylatorow
-    insert_pattern(grid, "blinker", 5, 5)
-    insert_pattern(grid, "toad", 20, 20)
-
-def glider_gun(grid, x, y): #wykonanie pkt 4 - działo
+def glider_gun(grid, x, y):
     coords = [
-        (0, 24),
-        (1, 22), (1, 24),
-        (2, 12), (2, 13), (2, 20), (2, 21), (2, 34), (2, 35),
-        (3, 11), (3, 15), (3, 20), (3, 21), (3, 34), (3, 35),
-        (4, 0), (4, 1), (4, 10), (4, 16), (4, 20), (4, 21),
-        (5, 0), (5, 1), (5, 10), (5, 14), (5, 16), (5, 17), (5, 22), (5, 24),
-        (6, 10), (6, 16), (6, 24),
-        (7, 11), (7, 15),
-        (8, 12), (8, 13)
+        (0,24),(1,22),(1,24),(2,12),(2,13),(2,20),(2,21),(2,34),(2,35),
+        (3,11),(3,15),(3,20),(3,21),(3,34),(3,35),(4,0),(4,1),(4,10),
+        (4,16),(4,20),(4,21),(5,0),(5,1),(5,10),(5,14),(5,16),(5,17),
+        (5,22),(5,24),(6,10),(6,16),(6,24),(7,11),(7,15),(8,12),(8,13)
     ]
     for dx, dy in coords:
-        grid[x + dx][y + dy] = 1
+        grid[x+dx][y+dy] = 1
 
-def matuzalek (grid, x, y): #wykonanie pkt 5 - matuzalek
-    coords = [(0,1), (0,2), (1,0), (1,1), (2,1)]
+def matuzalech(grid, x, y):
+    coords = [(0,1),(0,2),(1,0),(1,1),(2,1)]
     for dx, dy in coords:
-        grid[x + dx][y + dy] = 1
+        grid[x+dx][y+dy] = 1
 
-
-def animate(grid, steps, interval=200): #animacja komorek w kazdej iteracji
+def animate(grid, steps, interval=200, save_path=None):
     fig, ax = plt.subplots()
-    img = ax.imshow(grid, cmap='binary')
-
+    img  = ax.imshow(grid, cmap='binary')
     text = ax.text(0.95, 0.95, '', transform=ax.transAxes,
                    fontsize=12, color='red', ha='right', va='top',
                    bbox=dict(facecolor='white', alpha=0.7))
 
     def update(frame):
         nonlocal grid
-        new_grid = transition_rules(grid)
-
-        grid = new_grid
+        grid = transition_rules(grid)
         img.set_data(grid)
-
-        alive_cells = count_alive_cells(grid)
-        ax.set_title(f"Epoka: {frame + 1}") #informacja ktora to epoka oraz ilosc zywych komorek w niej
-        text.set_text(f"Liczba żywych komórek: {alive_cells}")
-
-        if frame + 1 == steps:
-            print(f"Końcowa liczba żywych komórek: {alive_cells}")
+        alive = count_alive_cells(grid)
+        ax.set_title(f"Epoka: {frame+1}")
+        text.set_text(f"Żywych: {alive}")
+        if frame+1 == steps:
             ani.event_source.stop()
+        return img, text
 
-        return [img, text]
+    ani = animation.FuncAnimation(
+        fig, update, frames=steps, interval=interval, blit=False
+    )
 
-    ani = animation.FuncAnimation(fig, update, frames=steps, interval=interval, blit=False)
-    plt.show()
-
-
+    if save_path:
+        writer = PillowWriter(fps=1000/interval)
+        ani.save(save_path, writer=writer)
+        print(f"Zapisano animację do: {save_path}")
+        plt.close(fig)
+    else:
+        plt.show()
 
 def main():
+    actions = {
+        "1": ("wzorce ciągłego życia", still_life, 5,  "still_life.gif"),
+        "2": ("oscylatory",          oscylator, 10, "oscylator.gif"),
+        "3": ("działo Glider Gun",   glider_gun,100,"glider_gun.gif"),
+        "4": ("Matuzalech",           matuzalech, 250,"matuzalech.gif")
+    }
     while True:
-        mode = input("Wybierz symulację ('1' dla symulacji wzorców ciągłego życia, '2' dla symulacji oscylatorów, '3' dla symulacji wybranego działa, '4' dla symulacji Matuzalecha lub 'end' aby zakończyć): ").strip().lower()
-        if mode == "end":
+        choice = input(
+            "Wybierz symulację:\n"
+            " 1 – wzorce ciągłego życia\n"
+            " 2 – oscylatory\n"
+            " 3 – działo Glider Gun\n"
+            " 4 – Matuzalech\n"
+            " end – zakończ\n> "
+        ).strip().lower()
+        if choice == "end":
             print("Koniec programu.")
             break
+        if choice not in actions:
+            print("Nieznany tryb, spróbuj ponownie.")
+            continue
 
+        desc, func, steps, fname = actions[choice]
         grid = create_grid(50, 50)
-
-        if mode == "1":
-            print("Symulacja wzorców ciągłego życia:")
-            still_life(grid)
-            print(f"Początkowa liczba żywych komórek: {count_alive_cells(grid)}")
-            animate(grid, steps=5)
-
-        elif mode == "2":
-            print("Symulacja oscylatorów:")
-            oscylator(grid)
-            print(f"Początkowa liczba żywych komórek: {count_alive_cells(grid)}")
-            animate(grid, steps=10)
-
-        elif mode == "3":
-            print("Symulacja działa:")
-            glider_gun(grid, 10, 10)
-            print(f"Początkowa liczba żywych komórek: {count_alive_cells(grid)}")
-            animate(grid, steps=100)
-
-        elif mode == "4":
-            print("Symulacja Matuzalecha:")
-            matuzalek(grid, 10, 10)
-            print(f"Początkowa liczba żywych komórek: {count_alive_cells(grid)}")
-            animate(grid, steps= 250)
-
+        if choice in ("3", "4"):
+            func(grid, 10, 10)
         else:
-            print("Błąd: nieznany tryb symulacji")
+            func(grid)
 
-
+        print(f"Symulacja {desc}. Początkowe żywe komórki: {count_alive_cells(grid)}")
+        animate(grid, steps, interval=200, save_path=fname)
 
 if __name__ == "__main__":
     main()
